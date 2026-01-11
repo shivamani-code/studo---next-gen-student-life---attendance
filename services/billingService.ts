@@ -39,6 +39,45 @@ const getEdgeFunctionErrorMessage = async (error: any): Promise<string> => {
   }
 };
 
+const invokeEdgeFunction = async <T>(
+  functionName: string,
+  token: string,
+  body: any
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+  if (!supabaseUrl || !anonKey) return { ok: false, error: 'Supabase is not configured' };
+
+  const url = `${supabaseUrl.replace(/\/$/, '')}/functions/v1/${functionName}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      apikey: anonKey
+    },
+    body: JSON.stringify(body ?? {})
+  });
+
+  if (!res.ok) {
+    const status = res.status;
+    let msg = '';
+    try {
+      const j = await res.clone().json();
+      const raw = (j as any)?.error;
+      msg = typeof raw === 'string' ? raw : raw?.message ? String(raw.message) : JSON.stringify(j);
+    } catch {
+      msg = String((await res.clone().text().catch(() => '')) || '').trim();
+    }
+    return { ok: false, error: msg ? `HTTP ${status}: ${msg}` : `HTTP ${status}` };
+  }
+
+  const data = (await res.json().catch(() => null)) as T;
+  return { ok: true, data };
+};
+
 export class BillingService {
   static async getStatus(): Promise<BillingStatus> {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -56,22 +95,13 @@ export class BillingService {
       };
     }
 
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-    const { data, error } = await supabase.functions.invoke('billing-status', {
-      body: {},
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(anonKey ? { apikey: anonKey } : {})
-      }
-    });
-
-    if (error) {
-      const msg = await getEdgeFunctionErrorMessage(error);
+    const res = await invokeEdgeFunction<BillingStatus>('billing-status', token, {});
+    if (res.ok === false) {
       return {
         ok: false,
         accessAllowed: false,
         isPaid: false,
-        status: msg,
+        status: res.error,
         trialEndsAt: null,
         trialHoursLeft: null,
         currentPeriodEnd: null,
@@ -79,7 +109,7 @@ export class BillingService {
       };
     }
 
-    return data as BillingStatus;
+    return res.data;
   }
 
   static async createSubscription(): Promise<{ ok: true; keyId: string; subscriptionId: string } | { ok: false; error: string }> {
@@ -87,23 +117,13 @@ export class BillingService {
     const token = sessionData.session?.access_token;
     if (!token) return { ok: false, error: 'Not authenticated' };
 
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-    const { data, error } = await supabase.functions.invoke('billing-create-subscription', {
-      body: {},
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(anonKey ? { apikey: anonKey } : {})
-      }
-    });
+    const res = await invokeEdgeFunction<any>('billing-create-subscription', token, {});
+    if (res.ok === false) return { ok: false, error: res.error };
 
-    if (error) {
-      const msg = await getEdgeFunctionErrorMessage(error);
-      return { ok: false, error: msg };
-    }
+    const data = res.data;
+    if (!data?.ok) return { ok: false, error: data?.error || 'Unable to create subscription' };
 
-    if (!(data as any)?.ok) return { ok: false, error: (data as any)?.error || 'Unable to create subscription' };
-
-    return { ok: true, keyId: (data as any).keyId, subscriptionId: (data as any).subscriptionId };
+    return { ok: true, keyId: data.keyId, subscriptionId: data.subscriptionId };
   }
 
   static async loadRazorpay(): Promise<boolean> {
