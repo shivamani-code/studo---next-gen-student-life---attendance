@@ -1,0 +1,191 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studo | Advanced Student OS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Space+Grotesk:wght@300;500;700&family=JetBrains+Mono:wght@400;700&family=Prata&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #050505;
+            --text-vibrant: #f2f2f2;
+            --gold-primary: #d4af37;
+            --gold-glow: rgba(212, 175, 55, 0.2);
+            --text-dim: #666666;
+            --border-white-10: rgba(255, 255, 255, 0.05);
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: var(--bg-deep);
+            color: var(--text-vibrant);
+            scroll-behavior: smooth;
+            overflow-x: hidden;
+        }
+
+        .serif-luxury {
+            font-family: 'Prata', serif;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Osmo-grade Film Grain / Noise Overlay */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0.04;
+            pointer-events: none;
+            z-index: 9999;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        .text-gold {
+            color: var(--gold-primary);
+            background: linear-gradient(135deg, #fff 0%, #d4af37 50%, #8a6d3b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .osmo-heading {
+            letter-spacing: -0.04em;
+            line-height: 0.85;
+            text-transform: uppercase;
+        }
+        
+        .loader-percentage {
+            font-size: 10vw;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+            font-family: 'Prata', serif;
+        }
+
+        /* Custom Habit Grid Utility */
+        .grid-cols-31 {
+            display: grid;
+            grid-template-columns: repeat(31, minmax(0, 1fr));
+        }
+
+        /* Responsive Utilities */
+        @media (max-width: 640px) {
+            .text-responsive-xs {
+                font-size: 0.75rem;
+            }
+            .text-responsive-sm {
+                font-size: 0.875rem;
+            }
+            .text-responsive-base {
+                font-size: 1rem;
+            }
+            .text-responsive-lg {
+                font-size: 1.125rem;
+            }
+            .text-responsive-xl {
+                font-size: 1.25rem;
+            }
+            .text-responsive-2xl {
+                font-size: 1.5rem;
+            }
+            .text-responsive-3xl {
+                font-size: 1.875rem;
+            }
+            .text-responsive-4xl {
+                font-size: 2.25rem;
+            }
+            .text-responsive-5xl {
+                font-size: 3rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .text-md-responsive-xs {
+                font-size: 0.75rem;
+            }
+            .text-md-responsive-sm {
+                font-size: 0.875rem;
+            }
+            .text-md-responsive-base {
+                font-size: 1rem;
+            }
+            .text-md-responsive-lg {
+                font-size: 1.125rem;
+            }
+            .text-md-responsive-xl {
+                font-size: 1.25rem;
+            }
+            .text-md-responsive-2xl {
+                font-size: 1.5rem;
+            }
+            .text-md-responsive-3xl {
+                font-size: 1.875rem;
+            }
+            .text-md-responsive-4xl {
+                font-size: 2.25rem;
+            }
+            .text-md-responsive-5xl {
+                font-size: 3rem;
+            }
+        }
+
+        /* Custom Scrollbar for Luxury Look */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--gold-primary);
+            border-radius: 10px;
+        }
+
+        .glass-luxury {
+            background: rgba(10, 10, 10, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(212, 175, 55, 0.1);
+        }
+
+        .gold-glow-hover:hover {
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.15);
+            border-color: rgba(212, 175, 55, 0.4);
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.12.0",
+    "framer-motion": "https://esm.sh/framer-motion@^12.25.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="selection:bg-[#d4af37] selection:text-black">
+    <div id="studo-splash" class="studo-splash">
+        <div class="studo-splash__bg serif-luxury">STUDO</div>
+        <div class="studo-splash__hud">
+            <div class="studo-splash__row">
+                <div id="studo-splash-status" class="studo-splash__label mono">INITIALIZING</div>
+                <div id="studo-splash-percent" class="studo-splash__percent serif-luxury">0%</div>
+            </div>
+            <div class="studo-splash__line" aria-hidden="true">
+                <div id="studo-splash-line" class="studo-splash__lineFill"></div>
+            </div>
+        </div>
+    </div>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

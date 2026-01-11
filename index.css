@@ -1,0 +1,105 @@
+:root {
+  --bg-deep: #050505;
+  --text-vibrant: #f2f2f2;
+  --gold-primary: #d4af37;
+  --border-white-10: rgba(255, 255, 255, 0.05);
+}
+
+.studo-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: var(--bg-deep);
+  overflow: hidden;
+}
+
+.studo-splash::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(800px 420px at 50% 45%, rgba(212, 175, 55, 0.10), transparent 60%),
+    radial-gradient(900px 520px at 50% 60%, rgba(255, 255, 255, 0.04), transparent 65%),
+    radial-gradient(1200px 900px at 50% 50%, transparent 35%, rgba(0, 0, 0, 0.9) 85%);
+  opacity: 1;
+}
+
+.studo-splash__bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: min(26vw, 260px);
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  text-transform: uppercase;
+  color: rgba(212, 175, 55, 0.12);
+  filter: blur(0.2px);
+  transform: scale(1.02);
+  user-select: none;
+}
+
+.studo-splash__hud {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.studo-splash__row {
+  width: min(520px, calc(100vw - 48px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.studo-splash__label {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(212, 175, 55, 0.9);
+  opacity: 0.9;
+}
+
+.studo-splash__percent {
+  font-size: min(9vw, 78px);
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 10px 40px rgba(0, 0, 0, 0.65);
+}
+
+.studo-splash__line {
+  width: min(420px, calc(100vw - 72px));
+  height: 1px;
+  margin: 18px auto 0;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.studo-splash__lineFill {
+  height: 100%;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.05), rgba(212, 175, 55, 1), rgba(255, 255, 255, 0.65));
+  box-shadow: 0 0 22px rgba(212, 175, 55, 0.35);
+}
+
+.studo-splash__label,
+.studo-splash__percent {
+  transform: translateY(0);
+}
+
+/* Hide splash when React marks app ready */
+.studo-splash--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 600ms ease;
+}

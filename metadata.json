@@ -1,0 +1,8 @@
+{
+  "name": "Studo - Next-Gen Student Life & Attendance",
+  "description": "A comprehensive student management system featuring AI-driven attendance prediction, smart calendars, and academic analytics with a stunning modern UI.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
