@@ -49,6 +49,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [billingStatus, setBillingStatus] = useState<string>('');
   const [subscribing, setSubscribing] = useState(false);
 
+  const isPaid = billingStatus === 'active';
+
   // Load data on component mount
   React.useEffect(() => {
     setSubjects(DataService.getSubjects());
@@ -399,12 +401,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
               )}
             </button>
 
-            {!billingLoading && billingAccessAllowed && (
+            {!billingLoading && billingAccessAllowed && !isPaid && (
               <button
                 type="button"
                 onClick={startSubscription}
                 disabled={subscribing}
-                className="hidden md:flex items-center px-4 py-2 bg-[#d4af37]/10 border border-[#d4af37]/20 rounded-xl text-[10px] font-black uppercase mono text-[#d4af37] tracking-widest"
+                className="flex items-center px-4 py-2 bg-[#d4af37]/10 border border-[#d4af37]/20 rounded-xl text-[10px] font-black uppercase mono text-[#d4af37] tracking-widest"
                 title="Subscribe ₹59/month"
               >
                 {subscribing ? 'PROCESSING' : 'UPGRADE'}
@@ -428,9 +430,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth">
           {!billingLoading && billingAccessAllowed && trialHoursLeft !== null && (
-            <div className="mb-4 bg-white/[0.03] border border-white/[0.05] rounded-2xl px-5 py-3">
-              <p className="text-[10px] font-black uppercase tracking-widest mono text-[#d4af37]">TRIAL_ACTIVE</p>
-              <p className="mt-1 text-[10px] font-bold mono uppercase tracking-widest text-[#777] opacity-80">{trialHoursLeft} hours left</p>
+            <div className="mb-4 bg-white/[0.03] border border-white/[0.05] rounded-2xl px-5 py-3 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest mono text-[#d4af37]">TRIAL_ACTIVE</p>
+                <p className="mt-1 text-[10px] font-bold mono uppercase tracking-widest text-[#777] opacity-80">{trialHoursLeft} hours left</p>
+              </div>
+              {!isPaid && (
+                <button
+                  type="button"
+                  onClick={startSubscription}
+                  disabled={subscribing}
+                  className="px-4 py-2 bg-[#d4af37]/10 border border-[#d4af37]/20 rounded-xl text-[10px] font-black uppercase mono text-[#d4af37] tracking-widest disabled:opacity-60"
+                  title="Subscribe ₹59/month"
+                >
+                  {subscribing ? 'PROCESSING' : 'UPGRADE'}
+                </button>
+              )}
             </div>
           )}
           <AnimatePresence mode="wait">

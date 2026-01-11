@@ -56,9 +56,13 @@ export class BillingService {
       };
     }
 
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
     const { data, error } = await supabase.functions.invoke('billing-status', {
       body: {},
-      headers: { Authorization: `Bearer ${token}` }
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(anonKey ? { apikey: anonKey } : {})
+      }
     });
 
     if (error) {
@@ -83,9 +87,13 @@ export class BillingService {
     const token = sessionData.session?.access_token;
     if (!token) return { ok: false, error: 'Not authenticated' };
 
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
     const { data, error } = await supabase.functions.invoke('billing-create-subscription', {
       body: {},
-      headers: { Authorization: `Bearer ${token}` }
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(anonKey ? { apikey: anonKey } : {})
+      }
     });
 
     if (error) {
