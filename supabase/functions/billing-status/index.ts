@@ -28,9 +28,9 @@ serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !serviceRoleKey) {
     return new Response(JSON.stringify({ error: 'Server is not configured.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -46,11 +46,11 @@ serve(async (req) => {
     });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     global: { headers: { Authorization: `Bearer ${token}` } }
   });
 
-  const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+  const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
   if (userErr || !userData?.user?.id) {
     return new Response(JSON.stringify({ error: userErr?.message || 'Invalid session' }), {
       status: 401,
@@ -60,7 +60,7 @@ serve(async (req) => {
 
   const userId = userData.user.id;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('user_billing')
     .select('user_id, trial_ends_at, subscription_status, razorpay_subscription_id, current_period_end')
     .eq('user_id', userId)
@@ -73,7 +73,32 @@ serve(async (req) => {
     });
   }
 
-  const row = data as BillingRow | null;
+  let row = data as BillingRow | null;
+
+  if (!row) {
+    const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: inserted, error: insertErr } = await supabaseAdmin
+      .from('user_billing')
+      .upsert(
+        {
+          user_id: userId,
+          trial_ends_at: trialEndsAt,
+          subscription_status: 'trialing'
+        },
+        { onConflict: 'user_id' }
+      )
+      .select('user_id, trial_ends_at, subscription_status, razorpay_subscription_id, current_period_end')
+      .maybeSingle();
+
+    if (insertErr) {
+      return new Response(JSON.stringify({ error: insertErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    row = (inserted as BillingRow | null) ?? null;
+  }
   const nowMs = Date.now();
   const trialEndsMs = row?.trial_ends_at ? new Date(row.trial_ends_at).getTime() : null;
   const isTrialActive = trialEndsMs !== null && Number.isFinite(trialEndsMs) && nowMs < trialEndsMs;
