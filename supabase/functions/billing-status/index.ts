@@ -7,6 +7,21 @@ const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
+const decodeJwtPayload = (token: string): Record<string, any> | null => {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length < 2) return null;
+    const b64url = parts[1];
+    const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(b64url.length / 4) * 4, '=');
+    const json = atob(b64);
+    const payload = JSON.parse(json);
+    if (!payload || typeof payload !== 'object') return null;
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
 type BillingRow = {
   user_id: string;
   trial_ends_at: string;
@@ -40,15 +55,30 @@ serve(async (req) => {
 
   const authHeader = req.headers.get('authorization') || '';
   const token = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7) : '';
+  const jwtPayload = token ? decodeJwtPayload(token) : null;
   console.log('billing-status: request', {
     hasAuth: Boolean(token),
-    hasServiceRoleKey: Boolean(serviceRoleKey)
+    hasServiceRoleKey: Boolean(serviceRoleKey),
+    jwtHasSub: Boolean(jwtPayload && (jwtPayload as any)?.sub),
+    jwtRole: jwtPayload ? String((jwtPayload as any)?.role || '') : ''
   });
   if (!token) {
     return new Response(JSON.stringify({ error: 'Missing authorization token.' }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
+  }
+
+  if (!jwtPayload || !(jwtPayload as any)?.sub) {
+    return new Response(
+      JSON.stringify({
+        error: `Invalid authorization token: missing sub claim (role=${String((jwtPayload as any)?.role || '')}). Please login again and ensure Authorization uses the user's access_token, not the anon key.`
+      }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
   }
 
   const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
