@@ -178,26 +178,26 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 w-full min-w-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
         <div>
           <h2 className="text-4xl font-black uppercase tracking-tighter mb-2 text-white">LOG_STATION</h2>
           <p className="text-[#888888] text-[10px] font-bold mono uppercase tracking-[0.2em] opacity-60">Operational Attendance Grid</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
           <button
             type="button"
             onClick={downloadCsv}
-            className="flex items-center gap-3 bg-[#111111] p-3 px-4 border border-white/5 rounded-2xl shadow-xl text-white hover:bg-white/5 transition-all"
+            className="flex items-center justify-center gap-3 bg-[#111111] p-3 px-4 border border-white/5 rounded-2xl shadow-xl text-white hover:bg-white/5 transition-all w-full sm:w-auto"
           >
             <Download size={18} />
-            <span className="text-[10px] font-black uppercase tracking-widest mono">DOWNLOAD_REPORT</span>
+            <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest mono">DOWNLOAD_REPORT</span>
           </button>
-          <div className="flex items-center gap-6 bg-[#111111] p-3 border border-white/5 rounded-2xl shadow-xl">
+          <div className="flex items-center justify-between gap-2 sm:gap-6 bg-[#111111] p-3 border border-white/5 rounded-2xl shadow-xl w-full sm:w-auto">
           <button className="p-2 text-[#888888] hover:text-white transition-all hover:bg-white/5 rounded-xl" onClick={() => setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}>
             <ChevronLeft size={20} />
           </button>
-          <span className="font-black text-xs min-w-[150px] text-center uppercase tracking-widest mono text-white">
+          <span className="font-black text-[11px] sm:text-xs flex-1 min-w-0 text-center uppercase tracking-widest mono text-white truncate px-1">
             {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
           </span>
           <button className="p-2 text-[#888888] hover:text-white transition-all hover:bg-white/5 rounded-xl" onClick={() => setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>
@@ -207,8 +207,8 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
         </div>
       </div>
 
-      <div className="bg-[#111111] border border-white/5 p-4 sm:p-6 md:p-8 rounded-[2rem] shadow-2xl relative w-full">
-        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 md:gap-3 w-full">
+      <div className="bg-[#111111] border border-white/5 p-4 sm:p-6 md:p-8 rounded-[2rem] shadow-2xl relative w-full min-w-0 overflow-hidden">
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 md:gap-3 w-full min-w-0">
           {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
             <div key={day} className="py-2 sm:py-3 md:py-4 text-center text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-[#555] mono">
               {day}
@@ -216,7 +216,7 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
           ))}
           
           {[...Array(firstDayOfMonth)].map((_, i) => (
-            <div key={`empty-${i}`} className="h-14 sm:h-20 md:h-28 rounded-2xl bg-[#0a0a0a]/30" />
+            <div key={`empty-${i}`} className="h-12 sm:h-20 md:h-28 rounded-2xl bg-[#0a0a0a]/30" />
           ))}
           
           {[...Array(daysInMonth)].map((_, i) => {
@@ -233,10 +233,10 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
                 key={dayNum}
                 whileHover={isFuture ? undefined : { scale: 1.05 }}
                 onClick={() => !isFuture && handleDayClick(dayNum, dateStr)}
-                className={`h-14 sm:h-20 md:h-28 p-2.5 sm:p-4 md:p-5 transition-all flex flex-col justify-between group relative rounded-2xl border-2 ${statusColors[status]} ${status === AttendanceStatus.NONE ? 'bg-[#0a0a0a]' : ''} ${isFuture ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`h-12 sm:h-20 md:h-28 p-2 sm:p-4 md:p-5 transition-all flex flex-col justify-between group relative rounded-2xl border-2 ${statusColors[status]} ${status === AttendanceStatus.NONE ? 'bg-[#0a0a0a]' : ''} ${isFuture ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <div className="flex justify-between items-start">
-                  <span className={`text-base sm:text-lg md:text-xl font-black mono tracking-tighter ${status === AttendanceStatus.NONE ? 'text-[#333]' : 'text-current'}`}>
+                  <span className={`text-sm sm:text-lg md:text-xl font-black mono tracking-tighter ${status === AttendanceStatus.NONE ? 'text-[#333]' : 'text-current'}`}>
                     {dayNum.toString().padStart(2, '0')}
                   </span>
                   {hasProof && (
@@ -245,8 +245,8 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
                 </div>
                 
                 {status !== AttendanceStatus.NONE && (
-                    <div className={`text-[9px] font-black uppercase tracking-tighter px-2.5 py-1.5 rounded-lg border border-white/10`}>
-                        {status}
+                    <div className={`text-[7px] sm:text-[9px] font-black uppercase tracking-tighter px-1.5 py-1 sm:px-2.5 sm:py-1.5 rounded-lg border border-white/10 w-full overflow-hidden text-center leading-none`}>
+                      <span className="block truncate">{status}</span>
                     </div>
                 )}
               </motion.div>

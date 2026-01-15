@@ -635,8 +635,8 @@ const Analytics: React.FC<Props> = ({ subjects, fullWidth = false }) => {
               {forecastSignal.status}
             </div>
           </div>
-          <div className="space-y-3 relative z-10">
-            <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-3 relative z-10 min-w-0">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 min-w-0">
               <div className="bg-black/30 border border-white/10 rounded-2xl p-4">
                 <p className="text-[10px] font-black uppercase tracking-widest mono text-[#666]">TARGET</p>
                 <p className="mt-2 text-xl font-black text-white">{forecastSignal.target}%</p>
@@ -653,7 +653,7 @@ const Analytics: React.FC<Props> = ({ subjects, fullWidth = false }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 min-w-0">
               <div className="bg-black/30 border border-white/10 rounded-2xl p-4">
                 <p className="text-[10px] font-black uppercase tracking-widest mono text-[#666]">MONTH_CURRENT</p>
                 <p className="mt-2 text-xl font-black text-white">{forecastMonth ? forecastMonth.percentage.toFixed(1) : '0.0'}</p>
@@ -728,8 +728,8 @@ const Analytics: React.FC<Props> = ({ subjects, fullWidth = false }) => {
               <p className="text-[#888888] text-[10px] font-bold mono uppercase tracking-[0.4em] opacity-60">Queue priority & completion</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="h-[240px] bg-black/30 border border-white/10 rounded-[2rem] p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+            <div className="h-[240px] bg-black/30 border border-white/10 rounded-[2rem] p-4 overflow-hidden min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.4em] mono text-[#666]">PRIORITY</p>
               <div className="mt-2 h-[190px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -744,7 +744,7 @@ const Analytics: React.FC<Props> = ({ subjects, fullWidth = false }) => {
                 </ResponsiveContainer>
               </div>
             </div>
-            <div className="h-[240px] bg-black/30 border border-white/10 rounded-[2rem] p-4">
+            <div className="h-[240px] bg-black/30 border border-white/10 rounded-[2rem] p-4 overflow-hidden min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.4em] mono text-[#666]">COMPLETION</p>
               <div className="mt-2 h-[190px]">
                 <ResponsiveContainer width="100%" height="100%">
