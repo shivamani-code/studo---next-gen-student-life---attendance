@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Calendar, PieChart, LogOut, Bell, Menu, 
-  ShieldAlert, BookOpen, Timer, RefreshCw, GraduationCap, User,
+  ShieldAlert, BookOpen, Timer, GraduationCap, User,
   Download, Upload, Zap, FileText
 } from 'lucide-react';
 import AttendanceHealth from './AttendanceHealth';
@@ -13,7 +13,6 @@ import LeavePlanner from './LeavePlanner';
 import Analytics from './Analytics';
 import HabitTracker from './MonthlyHabitTracker';
 import PersonalSpace from './PersonalSpace';
-import CloudSync from './CloudSync';
 import AcademicQueue from './AcademicQueue';
 import TaskManager from './TaskManager';
 import Profile from './Profile';
@@ -51,6 +50,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
+  const loadCoreData = React.useCallback(() => {
+    setSubjects(DataService.getSubjects());
+    setCourses(DataService.getCourses());
+    setExams(DataService.getExams());
+    setProfile(DataService.getUserProfile());
+  }, []);
+
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingAccessAllowed, setBillingAccessAllowed] = useState(true);
   const [trialHoursLeft, setTrialHoursLeft] = useState<number | null>(null);
@@ -61,11 +67,25 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
   // Load data on component mount
   React.useEffect(() => {
-    setSubjects(DataService.getSubjects());
-    setCourses(DataService.getCourses());
-    setExams(DataService.getExams());
-    setProfile(DataService.getUserProfile());
-  }, []);
+    loadCoreData();
+    const onDataUpdated = () => loadCoreData();
+    window.addEventListener('studo_data_updated', onDataUpdated);
+    window.addEventListener('studo_profile_updated', onDataUpdated);
+
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key.startsWith('studo_')) {
+        loadCoreData();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      window.removeEventListener('studo_data_updated', onDataUpdated);
+      window.removeEventListener('studo_profile_updated', onDataUpdated);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [loadCoreData]);
 
   const refreshBilling = async () => {
     try {
@@ -206,14 +226,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     }
   };
 
-  React.useEffect(() => {
-    const onProfileUpdated = () => {
-      setProfile(DataService.getUserProfile());
-    };
-    window.addEventListener('studo_profile_updated', onProfileUpdated);
-    return () => window.removeEventListener('studo_profile_updated', onProfileUpdated);
-  }, []);
-
   const exportData = () => {
     const data = DataService.exportData();
     const blob = new Blob([data], { type: 'application/json' });
@@ -257,7 +269,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     { id: 'personal', label: 'FOCUS', icon: <Timer size={18} /> },
     { id: 'habits', label: 'HABITS', icon: <BookOpen size={18} /> },
     { id: 'tasks', label: 'TASKS', icon: <BookOpen size={18} /> },
-    { id: 'sync', label: 'SYNC', icon: <RefreshCw size={18} /> },
   ];
 
   const renderContent = () => {
@@ -317,7 +328,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       case 'habits': return <HabitTracker />;
       case 'tasks': return <TaskManager />;
       case 'profile': return <Profile />;
-      case 'sync': return <CloudSync />;
       default: return null;
     }
   };

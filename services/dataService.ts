@@ -1,6 +1,7 @@
 import { Subject, Habit, Task, Course, Exam, UserProfile, AttendanceStatus, AttendanceDay, QueueItem } from '../types';
 
 const ACTIVE_USER_KEY = 'studo_active_user_id';
+const LEGACY_MIGRATION_FLAG_PREFIX = 'studo_legacy_migrated__';
 
 const STORAGE_KEYS = {
   USER_PROFILE: 'studo_user_profile',
@@ -19,7 +20,12 @@ const STORAGE_KEYS = {
 
 const getActiveUserId = () => localStorage.getItem(ACTIVE_USER_KEY) || 'guest';
 const scopedKey = (key: string) => `${key}__${getActiveUserId()}`;
-const getItem = (key: string) => localStorage.getItem(scopedKey(key)) ?? localStorage.getItem(key);
+const getItem = (key: string) => {
+  const activeUserId = getActiveUserId();
+  const scoped = localStorage.getItem(`${key}__${activeUserId}`);
+  if (activeUserId && activeUserId !== 'guest') return scoped;
+  return scoped ?? localStorage.getItem(key);
+};
 const setItem = (key: string, value: string) => localStorage.setItem(scopedKey(key), value);
 const removeItem = (key: string) => {
   localStorage.removeItem(scopedKey(key));
@@ -29,9 +35,22 @@ const removeItem = (key: string) => {
 export class DataService {
   private static dispatchDataUpdated(): void {
     try {
+      try {
+        localStorage.setItem(scopedKey('studo_local_last_modified_at'), new Date().toISOString());
+      } catch {
+        // noop
+      }
       window.dispatchEvent(new Event('studo_data_updated'));
     } catch {
       // noop
+    }
+  }
+
+  static getLocalLastModifiedAt(): string | null {
+    try {
+      return localStorage.getItem(scopedKey('studo_local_last_modified_at'));
+    } catch {
+      return null;
     }
   }
 
@@ -162,7 +181,6 @@ export class DataService {
   static setActiveUserId(userId: string | null): void {
     if (userId) {
       localStorage.setItem(ACTIVE_USER_KEY, userId);
-      this.migrateLegacyDataToCurrentUser();
     } else {
       localStorage.removeItem(ACTIVE_USER_KEY);
     }
@@ -180,6 +198,27 @@ export class DataService {
     const activeUserId = getActiveUserId();
     if (!activeUserId || activeUserId === 'guest') return;
 
+    const flagKey = `${LEGACY_MIGRATION_FLAG_PREFIX}${activeUserId}`;
+    if (localStorage.getItem(flagKey)) return;
+
+    const hasAnyScoped = Object.values(STORAGE_KEYS).some((key) => {
+      const v = localStorage.getItem(scopedKey(key));
+      return v !== null && v !== '';
+    });
+    if (hasAnyScoped) {
+      localStorage.setItem(flagKey, '1');
+      return;
+    }
+
+    const hasAnyLegacy = Object.values(STORAGE_KEYS).some((key) => {
+      const v = localStorage.getItem(key);
+      return v !== null && v !== '';
+    });
+    if (!hasAnyLegacy) {
+      localStorage.setItem(flagKey, '1');
+      return;
+    }
+
     Object.values(STORAGE_KEYS).forEach((key) => {
       const legacy = localStorage.getItem(key);
       const scoped = localStorage.getItem(scopedKey(key));
@@ -190,6 +229,8 @@ export class DataService {
         localStorage.removeItem(key);
       }
     });
+
+    localStorage.setItem(flagKey, '1');
   }
 
   // User Profile
@@ -241,7 +282,32 @@ export class DataService {
 
   // Normal Attendance Days (new implementation)
   static getAttendanceDays(): AttendanceDay[] {
-    return this.safeParse<AttendanceDay[]>(getItem(STORAGE_KEYS.ATTENDANCE_DAYS), []);
+    const raw = this.safeParse<AttendanceDay[]>(getItem(STORAGE_KEYS.ATTENDANCE_DAYS), []);
+    const today = this.getTodayISO();
+    const byDate = new Map<string, AttendanceDay>();
+    for (const d of raw) {
+      const date = this.clampISODate(String((d as any)?.date ?? ''));
+      if (!date || date.length !== 10) continue;
+      if (date > today) continue;
+
+      const totalClasses = Math.max(0, Number((d as any)?.totalClasses ?? 1));
+      const status = (d as any)?.status as AttendanceStatus;
+      const leaveCounted = Boolean((d as any)?.leaveCounted);
+      const attendedClasses = status === AttendanceStatus.PRESENT
+        ? totalClasses
+        : status === AttendanceStatus.LEAVE
+          ? (leaveCounted ? totalClasses : 0)
+          : 0;
+
+      byDate.set(date, {
+        ...(d as any),
+        date,
+        totalClasses,
+        attendedClasses,
+        leaveCounted: status === AttendanceStatus.LEAVE ? leaveCounted : undefined
+      } as AttendanceDay);
+    }
+    return Array.from(byDate.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
   }
 
   static saveAttendanceDay(day: AttendanceDay): void {
@@ -717,18 +783,18 @@ export class DataService {
   // Export/Import
   static exportData(): string {
     const data = {
-      userProfile: this.getUserProfile(),
-      subjects: this.getSubjects(),
+      userProfile: this.safeParse<UserProfile | null>(getItem(STORAGE_KEYS.USER_PROFILE), null),
+      subjects: this.safeParse<Subject[]>(getItem(STORAGE_KEYS.SUBJECTS), []),
       attendanceDays: this.getAttendanceDays(),
-      queueItems: this.getQueueItems(),
-      habits: this.getHabits(),
-      tasks: this.getTasks(),
-      courses: this.getCourses(),
-      exams: this.getExams(),
-      contactSubmissions: this.getContactSubmissions(),
-      focusSessions: this.getFocusSessions(),
-      habitChecks: this.getHabitChecks(),
-      importantDates: this.getImportantDates()
+      queueItems: this.safeParse<QueueItem[]>(getItem(STORAGE_KEYS.QUEUE_ITEMS), []),
+      habits: this.safeParse<Habit[]>(getItem(STORAGE_KEYS.HABITS), []),
+      tasks: this.safeParse<Task[]>(getItem(STORAGE_KEYS.TASKS), []),
+      courses: this.safeParse<Course[]>(getItem(STORAGE_KEYS.COURSES), []),
+      exams: this.safeParse<Exam[]>(getItem(STORAGE_KEYS.EXAMS), []),
+      contactSubmissions: this.safeParse<any[]>(getItem(STORAGE_KEYS.CONTACT_SUBMISSIONS), []),
+      focusSessions: this.safeParse<any[]>(getItem(STORAGE_KEYS.FOCUS_SESSIONS), []),
+      habitChecks: this.safeParse<any[]>(getItem(STORAGE_KEYS.HABIT_CHECKS), []),
+      importantDates: this.safeParse<any[]>(getItem(STORAGE_KEYS.IMPORTANT_DATES), [])
     };
     return JSON.stringify(data, null, 2);
   }
@@ -740,7 +806,34 @@ export class DataService {
       if (data.userProfile) this.saveUserProfile(data.userProfile);
       if (data.subjects) this.saveSubjects(data.subjects);
       if (data.attendanceDays) {
-        setItem(STORAGE_KEYS.ATTENDANCE_DAYS, JSON.stringify(data.attendanceDays));
+        const today = this.getTodayISO();
+        const incoming: any[] = Array.isArray(data.attendanceDays) ? data.attendanceDays : [];
+        const byDate = new Map<string, AttendanceDay>();
+        for (const d of incoming) {
+          const date = this.clampISODate(String(d?.date ?? ''));
+          if (!date || date.length !== 10) continue;
+          if (date > today) continue;
+
+          const totalClasses = Math.max(0, Number(d?.totalClasses ?? 1));
+          const status = d?.status as AttendanceStatus;
+          const leaveCounted = Boolean(d?.leaveCounted);
+          const attendedClasses = status === AttendanceStatus.PRESENT
+            ? totalClasses
+            : status === AttendanceStatus.LEAVE
+              ? (leaveCounted ? totalClasses : 0)
+              : 0;
+
+          byDate.set(date, {
+            ...d,
+            date,
+            totalClasses,
+            attendedClasses,
+            leaveCounted: status === AttendanceStatus.LEAVE ? leaveCounted : undefined
+          } as AttendanceDay);
+        }
+
+        const normalized = Array.from(byDate.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        setItem(STORAGE_KEYS.ATTENDANCE_DAYS, JSON.stringify(normalized));
       }
       if (data.queueItems) this.saveQueueItems(data.queueItems);
       if (data.habits) this.saveHabits(data.habits);

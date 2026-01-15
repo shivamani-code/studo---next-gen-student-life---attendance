@@ -257,7 +257,6 @@ const LandingPage: React.FC = () => {
         throw new Error(res.error);
       }
 
-      console.log('Contact form submitted:', contactForm);
       alert('Thank you for your message! We will get back to you soon.');
 
       setContactForm({ name: '', email: '', description: '' });

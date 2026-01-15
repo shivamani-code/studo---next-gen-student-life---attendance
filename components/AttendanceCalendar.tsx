@@ -12,6 +12,7 @@ interface Props {
 const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedDateIso, setSelectedDateIso] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [remark, setRemark] = useState('');
   const [attendanceDays, setAttendanceDays] = useState<AttendanceDay[]>([]);
@@ -29,6 +30,8 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   };
+
+  const normalizeISO = (s: string) => String(s || '').slice(0, 10);
 
   const getDayISO = (day: number) => {
     return formatISODateLocal(new Date(currentDate.getFullYear(), currentDate.getMonth(), day));
@@ -107,8 +110,9 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
 
   const handleSubmitAttendance = () => {
     if (!selectedDay || !selectedStatus) return;
-    
-    const dateStr = getDayISO(selectedDay);
+
+    const dateStr = selectedDateIso ? normalizeISO(selectedDateIso) : '';
+    if (!dateStr) return;
     const record: AttendanceDay = {
       date: dateStr,
       status: selectedStatus,
@@ -135,11 +139,13 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
     setProofUrl('');
     setProofName('');
     setSelectedDay(null);
+    setSelectedDateIso(null);
   };
 
   const handleClearAttendance = () => {
     if (!selectedDay) return;
-    const dateStr = getDayISO(selectedDay);
+    const dateStr = selectedDateIso ? normalizeISO(selectedDateIso) : '';
+    if (!dateStr) return;
     DataService.deleteAttendanceDay(dateStr);
     if (startDate && endDate) {
       setAttendanceDays(DataService.getAttendanceDaysInRange(startDate, endDate));
@@ -153,20 +159,21 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
     setProofUrl('');
     setProofName('');
     setSelectedDay(null);
+    setSelectedDateIso(null);
   };
 
-  const handleDayClick = (day: number) => {
-    const dateStr = getDayISO(day);
+  const handleDayClick = (day: number, dateStr: string) => {
     const todayIso = formatISODateLocal(new Date());
     if (dateStr > todayIso) return;
 
-    const existing = attendanceDays.find(r => r.date === dateStr);
+    const existing = attendanceDays.find(r => normalizeISO(String(r.date)) === dateStr);
     setSelectedStatus(existing?.status ?? null);
     setRemark(existing?.remark ?? '');
     setLeaveCounted(Boolean(existing?.leaveCounted));
     setProofUrl(existing?.proofUrl ?? '');
     setProofName(existing?.proofName ?? '');
     setSelectedDay(day);
+    setSelectedDateIso(dateStr);
     setShowModal(true);
   };
 
@@ -187,37 +194,37 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
             <span className="text-[10px] font-black uppercase tracking-widest mono">DOWNLOAD_REPORT</span>
           </button>
           <div className="flex items-center gap-6 bg-[#111111] p-3 border border-white/5 rounded-2xl shadow-xl">
-          <button className="p-2 text-[#888888] hover:text-white transition-all hover:bg-white/5 rounded-xl" onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))}>
+          <button className="p-2 text-[#888888] hover:text-white transition-all hover:bg-white/5 rounded-xl" onClick={() => setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}>
             <ChevronLeft size={20} />
           </button>
           <span className="font-black text-xs min-w-[150px] text-center uppercase tracking-widest mono text-white">
             {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
           </span>
-          <button className="p-2 text-[#888888] hover:text-white transition-all hover:bg-white/5 rounded-xl" onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))}>
+          <button className="p-2 text-[#888888] hover:text-white transition-all hover:bg-white/5 rounded-xl" onClick={() => setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>
             <ChevronRight size={20} />
           </button>
           </div>
         </div>
       </div>
 
-      <div className="bg-[#111111] border border-white/5 p-8 rounded-[2rem] overflow-x-auto shadow-2xl relative">
-        <div className="grid grid-cols-7 gap-3 min-w-[700px]">
+      <div className="bg-[#111111] border border-white/5 p-4 sm:p-6 md:p-8 rounded-[2rem] shadow-2xl relative w-full">
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 md:gap-3 w-full">
           {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
-            <div key={day} className="py-4 text-center text-[10px] font-black uppercase tracking-widest text-[#555] mono">
+            <div key={day} className="py-2 sm:py-3 md:py-4 text-center text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-[#555] mono">
               {day}
             </div>
           ))}
           
           {[...Array(firstDayOfMonth)].map((_, i) => (
-            <div key={`empty-${i}`} className="h-28 rounded-2xl bg-[#0a0a0a]/30" />
+            <div key={`empty-${i}`} className="h-14 sm:h-20 md:h-28 rounded-2xl bg-[#0a0a0a]/30" />
           ))}
           
           {[...Array(daysInMonth)].map((_, i) => {
             const dayNum = i + 1;
-            const dateStr = getDayISO(dayNum);
+            const dateStr = normalizeISO(getDayISO(dayNum));
             const todayIso = formatISODateLocal(new Date());
             const isFuture = dateStr > todayIso;
-            const record = attendanceDays.find(r => r.date === dateStr);
+            const record = attendanceDays.find(r => normalizeISO(String(r.date)) === dateStr);
             const status = record?.status ?? AttendanceStatus.NONE;
             const hasProof = !!record?.proofUrl;
 
@@ -225,11 +232,11 @@ const AttendanceCalendar: React.FC<Props> = ({ startDate, endDate }) => {
               <motion.div
                 key={dayNum}
                 whileHover={isFuture ? undefined : { scale: 1.05 }}
-                onClick={() => !isFuture && handleDayClick(dayNum)}
-                className={`h-28 p-5 transition-all flex flex-col justify-between group relative rounded-2xl border-2 ${statusColors[status]} ${status === AttendanceStatus.NONE ? 'bg-[#0a0a0a]' : ''} ${isFuture ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                onClick={() => !isFuture && handleDayClick(dayNum, dateStr)}
+                className={`h-14 sm:h-20 md:h-28 p-2.5 sm:p-4 md:p-5 transition-all flex flex-col justify-between group relative rounded-2xl border-2 ${statusColors[status]} ${status === AttendanceStatus.NONE ? 'bg-[#0a0a0a]' : ''} ${isFuture ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <div className="flex justify-between items-start">
-                  <span className={`text-xl font-black mono tracking-tighter ${status === AttendanceStatus.NONE ? 'text-[#333]' : 'text-current'}`}>
+                  <span className={`text-base sm:text-lg md:text-xl font-black mono tracking-tighter ${status === AttendanceStatus.NONE ? 'text-[#333]' : 'text-current'}`}>
                     {dayNum.toString().padStart(2, '0')}
                   </span>
                   {hasProof && (

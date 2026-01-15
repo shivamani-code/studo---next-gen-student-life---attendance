@@ -6,6 +6,9 @@ import { supabase } from './services/supabaseClient';
 import { DataService } from './services/dataService';
 import { CloudDataService } from './services/cloudDataService';
 
+const CLOUD_LAST_ERROR_KEY = 'studo_cloud_last_error';
+const CLOUD_LAST_PUSH_AT_KEY = 'studo_cloud_last_push_at';
+
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [cloudReady, setCloudReady] = useState<boolean>(false);
@@ -46,12 +49,19 @@ const App: React.FC = () => {
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setIsAuthenticated(!!data.session);
-      DataService.setActiveUserId(data.session?.user?.id ?? null);
-      window.dispatchEvent(new Event('studo_data_updated'));
-    });
+    const syncFromSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!active) return;
+        setIsAuthenticated(!!data.session);
+        DataService.setActiveUserId(data.session?.user?.id ?? null);
+        window.dispatchEvent(new Event('studo_data_updated'));
+      } catch {
+        // noop
+      }
+    };
+
+    syncFromSession();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
@@ -59,9 +69,18 @@ const App: React.FC = () => {
       window.dispatchEvent(new Event('studo_data_updated'));
     });
 
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key === 'studo_active_user_id' || e.key.startsWith('sb-')) {
+        syncFromSession();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
     return () => {
       active = false;
       sub.subscription.unsubscribe();
+      window.removeEventListener('storage', onStorage);
     };
   }, []);
 
@@ -81,19 +100,69 @@ const App: React.FC = () => {
         const localSnapshotObj = JSON.parse(localSnapshotStr);
         const localEmpty = isSnapshotEffectivelyEmpty(localSnapshotObj);
 
+        const localLastModifiedAt = DataService.getLocalLastModifiedAt();
+        const localLastModifiedMs = localLastModifiedAt ? Date.parse(localLastModifiedAt) : null;
+
         const remoteRes = await CloudDataService.pullUserData();
-        if (!remoteRes.ok) return;
-
-        const remoteSnapshotObj = remoteRes.data.data;
-        const remoteEmpty = isSnapshotEffectivelyEmpty(remoteSnapshotObj);
-
-        if (localEmpty && !remoteEmpty && remoteSnapshotObj) {
-          DataService.importData(JSON.stringify(remoteSnapshotObj));
+        if (remoteRes.ok === false) {
+          try {
+            localStorage.setItem(CLOUD_LAST_ERROR_KEY, remoteRes.error);
+          } catch {
+            // noop
+          }
           return;
         }
 
-        if (!localEmpty && remoteEmpty) {
-          await CloudDataService.pushUserData(localSnapshotObj);
+        const rawRemote = remoteRes.data.data;
+        const remoteSnapshotObj = (() => {
+          if (!rawRemote) return null;
+          if (typeof rawRemote === 'string') {
+            try {
+              return JSON.parse(rawRemote);
+            } catch {
+              return null;
+            }
+          }
+          return rawRemote;
+        })();
+
+        const remoteEmpty = isSnapshotEffectivelyEmpty(remoteSnapshotObj);
+
+        const remoteUpdatedAt = remoteRes.data.updatedAt;
+        const remoteUpdatedMs = remoteUpdatedAt ? Date.parse(remoteUpdatedAt) : null;
+
+        const isRemoteNewer =
+          remoteUpdatedMs !== null && (localLastModifiedMs === null || remoteUpdatedMs > localLastModifiedMs + 1000);
+
+        const isLocalNewer =
+          localLastModifiedMs !== null && (remoteUpdatedMs === null || localLastModifiedMs > remoteUpdatedMs + 1000);
+
+        if (!remoteEmpty && remoteSnapshotObj && (localEmpty || isRemoteNewer)) {
+          DataService.importData(JSON.stringify(remoteSnapshotObj));
+          try {
+            localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
+          } catch {
+            // noop
+          }
+          return;
+        }
+
+        if (!localEmpty && (remoteEmpty || isLocalNewer)) {
+          const pushRes = await CloudDataService.pushUserData(localSnapshotObj);
+          if (pushRes.ok === true) {
+            try {
+              localStorage.setItem(CLOUD_LAST_PUSH_AT_KEY, new Date().toISOString());
+              localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
+            } catch {
+              // noop
+            }
+          } else if (pushRes.ok === false) {
+            try {
+              localStorage.setItem(CLOUD_LAST_ERROR_KEY, pushRes.error);
+            } catch {
+              // noop
+            }
+          }
         }
       } catch {
         
@@ -135,7 +204,21 @@ const App: React.FC = () => {
           const payload = JSON.parse(snapshot);
           if (isSnapshotEffectivelyEmpty(payload)) return;
           const res = await CloudDataService.pushUserData(payload);
-          if (res.ok) lastSentSnapshot = snapshot;
+          if (res.ok === true) {
+            lastSentSnapshot = snapshot;
+            try {
+              localStorage.setItem(CLOUD_LAST_PUSH_AT_KEY, new Date().toISOString());
+              localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
+            } catch {
+              // noop
+            }
+          } else if (res.ok === false) {
+            try {
+              localStorage.setItem(CLOUD_LAST_ERROR_KEY, res.error);
+            } catch {
+              // noop
+            }
+          }
         } catch {
           // best-effort autosync
         } finally {
@@ -164,8 +247,19 @@ const App: React.FC = () => {
   }, [isAuthenticated, cloudReady]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    DataService.setActiveUserId(null);
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // best-effort
+    } finally {
+      DataService.setActiveUserId(null);
+      setIsAuthenticated(false);
+      try {
+        window.dispatchEvent(new Event('studo_data_updated'));
+      } catch {
+        // noop
+      }
+    }
   };
 
   return (
@@ -177,7 +271,17 @@ const App: React.FC = () => {
         />
         <Route 
           path="/dashboard/*" 
-          element={isAuthenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/" />} 
+          element={
+            isAuthenticated
+              ? (cloudReady
+                ? <Dashboard onLogout={handleLogout} />
+                : (
+                  <div className="min-h-screen flex items-center justify-center text-white">
+                    LOADING
+                  </div>
+                ))
+              : <Navigate to="/" />
+          }
         />
       </Routes>
     </div>
