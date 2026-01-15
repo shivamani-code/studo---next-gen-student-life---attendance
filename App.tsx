@@ -12,6 +12,7 @@ const CLOUD_LAST_PUSH_AT_KEY = 'studo_cloud_last_push_at';
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [cloudReady, setCloudReady] = useState<boolean>(false);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean>(false);
 
   const isSnapshotEffectivelyEmpty = (snapshot: any): boolean => {
     try {
@@ -120,6 +121,8 @@ const App: React.FC = () => {
 
     const hydrateFromCloud = async () => {
       setCloudReady(false);
+      setAutoSyncEnabled(false);
+      let allowAutoSync = false;
 
       if (!isAuthenticated) {
         setCloudReady(true);
@@ -132,9 +135,6 @@ const App: React.FC = () => {
         const localEmpty = isSnapshotEffectivelyEmpty(localSnapshotObj);
         const localScore = snapshotScore(localSnapshotObj);
 
-        const localLastModifiedAt = DataService.getLocalLastModifiedAt();
-        const localLastModifiedMs = localLastModifiedAt ? Date.parse(localLastModifiedAt) : null;
-
         const remoteRes = await CloudDataService.pullUserData();
         if (remoteRes.ok === false) {
           try {
@@ -145,11 +145,12 @@ const App: React.FC = () => {
           return;
         }
 
+        // Cloud is reachable for this session; enable autosync so subsequent edits are persisted.
+        allowAutoSync = true;
+
         const remoteSnapshotObj = remoteRes.data.data;
         const remoteEmpty = isSnapshotEffectivelyEmpty(remoteSnapshotObj);
-
         const remoteScore = snapshotScore(remoteSnapshotObj);
-
         if (!remoteEmpty && remoteSnapshotObj) {
           if (localEmpty || remoteScore >= localScore) {
             const ok = DataService.importData(JSON.stringify(remoteSnapshotObj));
@@ -164,7 +165,10 @@ const App: React.FC = () => {
       } catch {
         // best-effort
       } finally {
-        if (!cancelled) setCloudReady(true);
+        if (!cancelled) {
+          setCloudReady(true);
+          setAutoSyncEnabled(allowAutoSync);
+        }
       }
     };
 
@@ -177,6 +181,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
     if (!cloudReady) return;
+    if (!autoSyncEnabled) return;
 
     let timer: number | null = null;
     let inFlight = false;
@@ -232,7 +237,7 @@ const App: React.FC = () => {
     window.addEventListener('studo_focus_updated', onData);
 
     // Initial sync shortly after login
-    schedule();
+    // (intentionally not forcing an immediate push on login to avoid overwriting cloud with empty/stale local snapshots)
 
     return () => {
       if (timer !== null) window.clearTimeout(timer);
@@ -241,7 +246,7 @@ const App: React.FC = () => {
       window.removeEventListener('studo_attendance_updated', onData);
       window.removeEventListener('studo_focus_updated', onData);
     };
-  }, [isAuthenticated, cloudReady]);
+  }, [isAuthenticated, cloudReady, autoSyncEnabled]);
 
   const handleLogout = async () => {
     try {
@@ -249,8 +254,10 @@ const App: React.FC = () => {
     } catch {
       // best-effort
     } finally {
-      DataService.setActiveUserId(null);
+      setCloudReady(false);
+      setAutoSyncEnabled(false);
       setIsAuthenticated(false);
+      DataService.setActiveUserId(null);
       try {
         window.dispatchEvent(new Event('studo_data_updated'));
       } catch {
