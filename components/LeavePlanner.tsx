@@ -160,31 +160,31 @@ const LeavePlanner: React.FC<Props> = ({ subjects }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
         <div>
           <h2 className="text-4xl font-black uppercase tracking-tighter mb-2 text-white">PROJECTION_DECK</h2>
           <p className="text-[#888888] text-[10px] font-bold mono uppercase tracking-[0.3em] opacity-60">Absence Risk Forecaster</p>
         </div>
-        <div className="flex items-center gap-5 bg-[#111111] px-6 py-3 border border-white/5 rounded-2xl shadow-xl">
+        <div className="flex items-center gap-5 bg-[#111111] px-6 py-3 border border-white/5 rounded-2xl shadow-xl w-full md:w-auto overflow-hidden">
           <History className="text-[#555]" size={18} />
-          <span className="text-[10px] font-black text-[#888888] uppercase tracking-[0.3em] mono tracking-widest">SCENARIO_CACHE: 12</span>
+          <span className="text-[10px] font-black text-[#888888] uppercase tracking-[0.3em] mono tracking-widest truncate">SCENARIO_CACHE: 12</span>
         </div>
       </div>
 
       {/* Unified Simulation Box */}
-      <div className="bg-[#111111] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col md:flex-row shadow-3xl">
-        <div className="flex-1 p-12 space-y-16">
-          <div className="flex items-center gap-4">
+      <div className="bg-[#111111] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col md:flex-row shadow-3xl w-full min-w-0">
+        <div className="flex-1 p-8 sm:p-10 md:p-12 space-y-16 min-w-0">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-900/30">
               <Zap size={22} />
             </div>
             <h3 className="text-xl font-black uppercase tracking-tighter text-white">SIMULATION_v4.2</h3>
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto flex flex-wrap items-center gap-3 min-w-0 w-full sm:w-auto justify-end">
               <select
                 value={baselineMode}
                 onChange={(e) => setBaselineMode(e.target.value as 'SEMESTER' | 'MONTH')}
-                className="bg-[#0a0a0a] border border-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest mono text-[#d4af37] outline-none"
+                className="bg-[#0a0a0a] border border-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest mono text-[#d4af37] outline-none w-full sm:w-auto"
               >
                 <option value="SEMESTER">SEM</option>
                 <option value="MONTH">MONTH</option>
@@ -193,7 +193,7 @@ const LeavePlanner: React.FC<Props> = ({ subjects }) => {
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 disabled={baselineMode !== 'MONTH' || monthKeys.length === 0}
-                className="bg-[#0a0a0a] border border-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest mono text-[#888888] outline-none disabled:opacity-40"
+                className="bg-[#0a0a0a] border border-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest mono text-[#888888] outline-none disabled:opacity-40 min-w-0 w-full sm:w-auto"
               >
                 {monthKeys.length === 0 ? (
                   <option value="">NO_MONTHS</option>
@@ -239,7 +239,7 @@ const LeavePlanner: React.FC<Props> = ({ subjects }) => {
           </div>
         </div>
 
-        <div className={`md:w-[420px] p-12 transition-all duration-700 flex flex-col items-center justify-center text-center ${isSafe ? 'bg-indigo-600/95' : 'bg-rose-600/95'} text-white relative shadow-2xl`}>
+        <div className={`md:w-[420px] p-8 sm:p-10 md:p-12 transition-all duration-700 flex flex-col items-center justify-center text-center ${isSafe ? 'bg-indigo-600/95' : 'bg-rose-600/95'} text-white relative shadow-2xl w-full md:w-[420px] min-w-0`}>
           <div className="absolute inset-0 bg-white/5 pointer-events-none" />
           <div className="w-24 h-24 rounded-full flex items-center justify-center mb-10 border-2 border-white/20 bg-white/10 backdrop-blur-xl shadow-2xl relative z-10">
             {isSafe ? <CheckCircle2 size={48} /> : <ShieldAlert size={48} />}

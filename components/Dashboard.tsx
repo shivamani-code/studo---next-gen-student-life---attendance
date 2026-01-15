@@ -336,7 +336,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const displayMeta = `${(profile?.className || profile?.department || 'PROFILE').toString().toUpperCase()} // SEM_${profile?.semester ?? 1}`;
 
   return (
-    <div className="flex h-screen bg-[#050505] text-[#ededed] overflow-hidden">
+    <div className="flex h-screen bg-[#050505] text-[#ededed] overflow-hidden min-w-0">
       {/* Sidebar */}
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300 border-r border-white/[0.03] flex flex-col z-20 bg-[#0a0a0a]/50 backdrop-blur-xl fixed top-0 left-0 h-full lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-4 lg:p-8 flex items-center gap-4">
@@ -401,7 +401,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       )}
 
       {/* Main content area */}
-      <main className="flex-1 flex flex-col overflow-hidden relative lg:ml-0">
+      <main className="flex-1 flex flex-col overflow-hidden relative lg:ml-0 min-w-0">
         <header className="h-16 md:h-20 border-b border-white/[0.03] px-3 sm:px-4 md:px-8 flex items-center justify-between z-10 bg-[#050505]/50 backdrop-blur-lg">
           <div className="flex items-center gap-3 sm:gap-4 md:gap-6 min-w-0">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-white/[0.02] rounded-xl text-[#666] hover:text-[#d4af37] transition-all hover:bg-white/05">
@@ -452,7 +452,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 scroll-smooth">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 lg:p-8 scroll-smooth min-w-0">
           {!billingLoading && billingAccessAllowed && trialHoursLeft !== null && (
             <div className="mb-4 bg-white/[0.03] border border-white/[0.05] rounded-2xl px-5 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
@@ -479,7 +479,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
-              className="w-full"
+              className="w-full min-w-0"
             >
               {renderContent()}
             </motion.div>
