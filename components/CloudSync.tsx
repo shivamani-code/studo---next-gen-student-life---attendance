@@ -4,26 +4,56 @@ import { supabase } from '../services/supabaseClient';
 import { CloudDataService } from '../services/cloudDataService';
 import { DataService } from '../services/dataService';
 
+const CLOUD_LAST_ERROR_KEY = 'studo_cloud_last_error';
+const CLOUD_LAST_PUSH_AT_KEY = 'studo_cloud_last_push_at';
+
 const CloudSync: React.FC = () => {
   const [email, setEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string>('');
   const [lastCloudUpdatedAt, setLastCloudUpdatedAt] = useState<string | null>(null);
+  const [lastCloudPushAt, setLastCloudPushAt] = useState<string | null>(null);
+  const [lastCloudError, setLastCloudError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     supabase.auth.getUser().then(({ data }) => {
       if (!active) return;
       setEmail(data.user?.email ?? null);
+      setUserId(data.user?.id ?? null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setEmail(session?.user?.email ?? null);
+      setUserId(session?.user?.id ?? null);
     });
 
     return () => {
       active = false;
       sub.subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const readDiag = () => {
+      try {
+        setLastCloudPushAt(localStorage.getItem(CLOUD_LAST_PUSH_AT_KEY));
+        setLastCloudError(localStorage.getItem(CLOUD_LAST_ERROR_KEY));
+      } catch {
+        setLastCloudPushAt(null);
+        setLastCloudError(null);
+      }
+    };
+
+    readDiag();
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key === CLOUD_LAST_PUSH_AT_KEY || e.key === CLOUD_LAST_ERROR_KEY) {
+        readDiag();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const isAuthed = !!email;
@@ -38,8 +68,21 @@ const CloudSync: React.FC = () => {
 
   const refreshCloudMeta = async () => {
     const res = await CloudDataService.pullUserData();
-    if (res.ok) {
+    if (res.ok === true) {
       setLastCloudUpdatedAt(res.data.updatedAt);
+      try {
+        localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
+      } catch {
+        // noop
+      }
+      setLastCloudError(null);
+    } else if (res.ok === false) {
+      try {
+        localStorage.setItem(CLOUD_LAST_ERROR_KEY, res.error);
+      } catch {
+        // noop
+      }
+      setLastCloudError(res.error);
     }
   };
 
@@ -55,14 +98,35 @@ const CloudSync: React.FC = () => {
       const payload = JSON.parse(DataService.exportData());
       const res = await CloudDataService.pushUserData(payload);
       if (res.ok === false) {
+        try {
+          localStorage.setItem(CLOUD_LAST_ERROR_KEY, res.error);
+        } catch {
+          // noop
+        }
+        setLastCloudError(res.error);
         setStatus('error');
         setMessage(res.error);
         return;
+      }
+      try {
+        const nowIso = new Date().toISOString();
+        localStorage.setItem(CLOUD_LAST_PUSH_AT_KEY, nowIso);
+        localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
+        setLastCloudPushAt(nowIso);
+        setLastCloudError(null);
+      } catch {
+        // noop
       }
       await refreshCloudMeta();
       setStatus('success');
       setMessage('Cloud upload completed.');
     } catch (e: any) {
+      try {
+        localStorage.setItem(CLOUD_LAST_ERROR_KEY, e?.message || 'Upload failed');
+      } catch {
+        // noop
+      }
+      setLastCloudError(e?.message || 'Upload failed');
       setStatus('error');
       setMessage(e?.message || 'Upload failed');
     }
@@ -74,23 +138,73 @@ const CloudSync: React.FC = () => {
 
     const res = await CloudDataService.pullUserData();
     if (res.ok === false) {
+      try {
+        localStorage.setItem(CLOUD_LAST_ERROR_KEY, res.error);
+      } catch {
+        // noop
+      }
+      setLastCloudError(res.error);
       setStatus('error');
       setMessage(res.error);
       return;
     }
 
     if (!res.data.data) {
+      try {
+        localStorage.setItem(CLOUD_LAST_ERROR_KEY, 'No cloud backup found for this account.');
+      } catch {
+        // noop
+      }
+      setLastCloudError('No cloud backup found for this account.');
       setStatus('error');
       setMessage('No cloud backup found for this account. Upload once to initialize.');
       return;
     }
 
-    const ok = DataService.importData(JSON.stringify(res.data.data));
+    const snapshotObj = (() => {
+      const raw = res.data.data;
+      if (!raw) return null;
+      if (typeof raw === 'string') {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return null;
+        }
+      }
+      return raw;
+    })();
+
+    if (!snapshotObj) {
+      try {
+        localStorage.setItem(CLOUD_LAST_ERROR_KEY, 'Cloud data exists but is unreadable.');
+      } catch {
+        // noop
+      }
+      setLastCloudError('Cloud data exists but is unreadable.');
+      setStatus('error');
+      setMessage('Cloud data exists but is unreadable. Upload again from your main device.');
+      return;
+    }
+
+    const ok = DataService.importData(JSON.stringify(snapshotObj));
     if (!ok) {
+      try {
+        localStorage.setItem(CLOUD_LAST_ERROR_KEY, 'Cloud data exists but import failed.');
+      } catch {
+        // noop
+      }
+      setLastCloudError('Cloud data exists but import failed.');
       setStatus('error');
       setMessage('Cloud data exists but import failed.');
       return;
     }
+
+    try {
+      localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
+    } catch {
+      // noop
+    }
+    setLastCloudError(null);
 
     setLastCloudUpdatedAt(res.data.updatedAt);
     setStatus('success');
@@ -121,6 +235,7 @@ const CloudSync: React.FC = () => {
               <div>
                 <p className="text-sm font-black uppercase tracking-tighter text-white">{isAuthed ? 'CONNECTED' : 'DISCONNECTED'}</p>
                 <p className="text-[10px] text-[#666] font-bold mono uppercase tracking-widest">{email || 'SIGN IN REQUIRED'}</p>
+                <p className="text-[10px] text-[#666] font-bold mono uppercase tracking-widest">{userId ? `UID_${userId.slice(0, 8)}` : 'UID_—'}</p>
               </div>
             </div>
           </div>
@@ -135,6 +250,7 @@ const CloudSync: React.FC = () => {
           <div className="bg-black/30 border border-white/10 rounded-[2rem] p-5">
             <p className="text-[10px] font-black uppercase tracking-[0.4em] mono text-[#666]">CLOUD_LAST_WRITE</p>
             <p className="mt-3 text-lg font-black text-white mono">{lastCloudUpdatedAt ? new Date(lastCloudUpdatedAt).toLocaleString() : '—'}</p>
+            <p className="mt-2 text-[10px] font-bold mono uppercase tracking-widest text-[#777] opacity-70">{lastCloudPushAt ? `LAST_PUSH ${new Date(lastCloudPushAt).toLocaleString()}` : 'LAST_PUSH —'}</p>
             <button
               type="button"
               onClick={refreshCloudMeta}
@@ -156,6 +272,9 @@ const CloudSync: React.FC = () => {
               )}
               <p className="text-xs font-bold mono text-[#888] leading-relaxed">{message || (isAuthed ? 'Ready.' : 'Sign in to enable cloud sync.')}</p>
             </div>
+            {lastCloudError && (
+              <p className="mt-3 text-[10px] font-bold mono uppercase tracking-widest text-rose-400/80">LAST_ERROR: {lastCloudError}</p>
+            )}
           </div>
         </div>
 

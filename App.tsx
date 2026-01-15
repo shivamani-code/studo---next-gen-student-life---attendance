@@ -6,6 +6,9 @@ import { supabase } from './services/supabaseClient';
 import { DataService } from './services/dataService';
 import { CloudDataService } from './services/cloudDataService';
 
+const CLOUD_LAST_ERROR_KEY = 'studo_cloud_last_error';
+const CLOUD_LAST_PUSH_AT_KEY = 'studo_cloud_last_push_at';
+
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [cloudReady, setCloudReady] = useState<boolean>(false);
@@ -78,12 +81,19 @@ const App: React.FC = () => {
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setIsAuthenticated(!!data.session);
-      DataService.setActiveUserId(data.session?.user?.id ?? null);
-      window.dispatchEvent(new Event('studo_data_updated'));
-    });
+    const syncFromSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!active) return;
+        setIsAuthenticated(!!data.session);
+        DataService.setActiveUserId(data.session?.user?.id ?? null);
+        window.dispatchEvent(new Event('studo_data_updated'));
+      } catch {
+        // noop
+      }
+    };
+
+    syncFromSession();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
@@ -91,9 +101,18 @@ const App: React.FC = () => {
       window.dispatchEvent(new Event('studo_data_updated'));
     });
 
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key === 'studo_active_user_id' || e.key.startsWith('sb-')) {
+        syncFromSession();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
     return () => {
       active = false;
       sub.subscription.unsubscribe();
+      window.removeEventListener('storage', onStorage);
     };
   }, []);
 
@@ -117,7 +136,14 @@ const App: React.FC = () => {
         const localScore = snapshotScore(localSnapshotObj);
 
         const remoteRes = await CloudDataService.pullUserData();
-        if (!remoteRes.ok) return;
+        if (remoteRes.ok === false) {
+          try {
+            localStorage.setItem(CLOUD_LAST_ERROR_KEY, remoteRes.error);
+          } catch {
+            // noop
+          }
+          return;
+        }
 
         // Cloud is reachable for this session; enable autosync so subsequent edits are persisted.
         allowAutoSync = true;
@@ -125,7 +151,6 @@ const App: React.FC = () => {
         const remoteSnapshotObj = remoteRes.data.data;
         const remoteEmpty = isSnapshotEffectivelyEmpty(remoteSnapshotObj);
         const remoteScore = snapshotScore(remoteSnapshotObj);
-
         if (!remoteEmpty && remoteSnapshotObj) {
           if (localEmpty || remoteScore >= localScore) {
             const ok = DataService.importData(JSON.stringify(remoteSnapshotObj));
@@ -137,12 +162,8 @@ const App: React.FC = () => {
           await CloudDataService.pushUserData(localSnapshotObj);
           return;
         }
-
-        if (!localEmpty && remoteEmpty) {
-          await CloudDataService.pushUserData(localSnapshotObj);
-        }
       } catch {
-        
+        // best-effort
       } finally {
         if (!cancelled) {
           setCloudReady(true);
@@ -185,7 +206,21 @@ const App: React.FC = () => {
           const payload = JSON.parse(snapshot);
           if (isSnapshotEffectivelyEmpty(payload)) return;
           const res = await CloudDataService.pushUserData(payload);
-          if (res.ok) lastSentSnapshot = snapshot;
+          if (res.ok === true) {
+            lastSentSnapshot = snapshot;
+            try {
+              localStorage.setItem(CLOUD_LAST_PUSH_AT_KEY, new Date().toISOString());
+              localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
+            } catch {
+              // noop
+            }
+          } else if (res.ok === false) {
+            try {
+              localStorage.setItem(CLOUD_LAST_ERROR_KEY, res.error);
+            } catch {
+              // noop
+            }
+          }
         } catch {
           // best-effort autosync
         } finally {
@@ -223,7 +258,11 @@ const App: React.FC = () => {
       setAutoSyncEnabled(false);
       setIsAuthenticated(false);
       DataService.setActiveUserId(null);
-      window.dispatchEvent(new Event('studo_data_updated'));
+      try {
+        window.dispatchEvent(new Event('studo_data_updated'));
+      } catch {
+        // noop
+      }
     }
   };
 
@@ -236,7 +275,17 @@ const App: React.FC = () => {
         />
         <Route 
           path="/dashboard/*" 
-          element={isAuthenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/" />} 
+          element={
+            isAuthenticated
+              ? (cloudReady
+                ? <Dashboard onLogout={handleLogout} />
+                : (
+                  <div className="min-h-screen flex items-center justify-center text-white">
+                    LOADING
+                  </div>
+                ))
+              : <Navigate to="/" />
+          }
         />
       </Routes>
     </div>
