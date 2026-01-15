@@ -46,6 +46,37 @@ const App: React.FC = () => {
     }
   };
 
+  const snapshotScore = (snapshot: any): number => {
+    try {
+      if (!snapshot || typeof snapshot !== 'object') return 0;
+      const arrLen = (v: any) => (Array.isArray(v) ? v.length : 0);
+      const isNonEmptyString = (v: any) => typeof v === 'string' && v.trim().length > 0;
+      const profile = snapshot.userProfile;
+      const profileScore = profile && typeof profile === 'object'
+        ? Object.values(profile).some((v) => isNonEmptyString(v))
+          ? 1
+          : 0
+        : 0;
+
+      const arraysScore =
+        arrLen(snapshot.subjects) +
+        arrLen(snapshot.attendanceDays) +
+        arrLen(snapshot.queueItems) +
+        arrLen(snapshot.habits) +
+        arrLen(snapshot.tasks) +
+        arrLen(snapshot.courses) +
+        arrLen(snapshot.exams) +
+        arrLen(snapshot.contactSubmissions) +
+        arrLen(snapshot.focusSessions) +
+        arrLen(snapshot.habitChecks) +
+        arrLen(snapshot.importantDates);
+
+      return arraysScore + profileScore;
+    } catch {
+      return 0;
+    }
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -99,6 +130,7 @@ const App: React.FC = () => {
         const localSnapshotStr = DataService.exportData();
         const localSnapshotObj = JSON.parse(localSnapshotStr);
         const localEmpty = isSnapshotEffectivelyEmpty(localSnapshotObj);
+        const localScore = snapshotScore(localSnapshotObj);
 
         const localLastModifiedAt = DataService.getLocalLastModifiedAt();
         const localLastModifiedMs = localLastModifiedAt ? Date.parse(localLastModifiedAt) : null;
@@ -113,59 +145,24 @@ const App: React.FC = () => {
           return;
         }
 
-        const rawRemote = remoteRes.data.data;
-        const remoteSnapshotObj = (() => {
-          if (!rawRemote) return null;
-          if (typeof rawRemote === 'string') {
-            try {
-              return JSON.parse(rawRemote);
-            } catch {
-              return null;
-            }
-          }
-          return rawRemote;
-        })();
-
+        const remoteSnapshotObj = remoteRes.data.data;
         const remoteEmpty = isSnapshotEffectivelyEmpty(remoteSnapshotObj);
 
-        const remoteUpdatedAt = remoteRes.data.updatedAt;
-        const remoteUpdatedMs = remoteUpdatedAt ? Date.parse(remoteUpdatedAt) : null;
+        const remoteScore = snapshotScore(remoteSnapshotObj);
 
-        const isRemoteNewer =
-          remoteUpdatedMs !== null && (localLastModifiedMs === null || remoteUpdatedMs > localLastModifiedMs + 1000);
-
-        const isLocalNewer =
-          localLastModifiedMs !== null && (remoteUpdatedMs === null || localLastModifiedMs > remoteUpdatedMs + 1000);
-
-        if (!remoteEmpty && remoteSnapshotObj && (localEmpty || isRemoteNewer)) {
-          DataService.importData(JSON.stringify(remoteSnapshotObj));
-          try {
-            localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
-          } catch {
-            // noop
+        if (!remoteEmpty && remoteSnapshotObj) {
+          if (localEmpty || remoteScore >= localScore) {
+            const ok = DataService.importData(JSON.stringify(remoteSnapshotObj));
+            if (ok) window.dispatchEvent(new Event('studo_data_updated'));
+            return;
           }
+
+          // Local appears richer than cloud; push local up so other devices can restore.
+          await CloudDataService.pushUserData(localSnapshotObj);
           return;
         }
-
-        if (!localEmpty && (remoteEmpty || isLocalNewer)) {
-          const pushRes = await CloudDataService.pushUserData(localSnapshotObj);
-          if (pushRes.ok === true) {
-            try {
-              localStorage.setItem(CLOUD_LAST_PUSH_AT_KEY, new Date().toISOString());
-              localStorage.removeItem(CLOUD_LAST_ERROR_KEY);
-            } catch {
-              // noop
-            }
-          } else if (pushRes.ok === false) {
-            try {
-              localStorage.setItem(CLOUD_LAST_ERROR_KEY, pushRes.error);
-            } catch {
-              // noop
-            }
-          }
-        }
       } catch {
-        
+        // best-effort
       } finally {
         if (!cancelled) setCloudReady(true);
       }
